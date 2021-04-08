@@ -1,0 +1,18 @@
+<?php
+
+/**
+ * Related Content
+ *
+ * @author Attila Németh
+ * 08.04.2021
+ */
+
+/**
+ * Implements hook_locale_translation_projects_alter()
+ */
+function related_locale_translation_projects_alter(&$projects)
+{
+  $projects['related']['info']['interface translation project'] = 'related';
+  $projects['related']['info']['interface translation server pattern'] =
+      drupal_get_path('module', 'related') . '/translations/related.%language.po';
+}
