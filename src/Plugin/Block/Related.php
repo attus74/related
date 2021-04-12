@@ -4,6 +4,7 @@ namespace Drupal\related\Plugin\Block;
 
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\NodeInterface;
 
 /**
  * Related Content Block
@@ -50,40 +51,13 @@ class Related extends BlockBase {
   public function build(): array {
     if (\Drupal::routeMatch()->getRouteName() === 'entity.node.canonical') {
       $node = \Drupal::routeMatch()->getParameter('node');
-      $taxonomyFields = [];
-      $taxonomyTerms = [];
-      $query = \Drupal::entityQuery('node');
-      $query->condition('nid', $node->id(), '<>');
-      $taxonomyGroup = $query->orConditionGroup();
-      foreach($node->getFieldDefinitions() as $field) {
-        if ($field->getType() == 'entity_reference' && $field->getSetting('target_type') == 'taxonomy_term') {
-          $taxonomyFields[$field->getName()] = $field->getName();
-          foreach($node->get($field->getName()) as $item) {
-            $term = $item->entity;
-            $taxonomyTerms[$term->id()] = $term->id();
-            $taxonomyGroup->condition($field->getName() . '.target_id', $term->id());
-          }
-        }
-      }
-      $query->condition($taxonomyGroup);
-      $related = $query->execute();
-      $contents = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($related);
-      $rankings = [];
-      foreach($contents as $relatedNode) {
-        $points = 0;
-        foreach($taxonomyFields as $fieldName) {
-          foreach($relatedNode->get($fieldName) as $item) {
-            if (array_key_exists($item->entity->id(), $taxonomyTerms)) {
-              $points++;
-            }
-          }
-        }
-        $rankings[$relatedNode->id()] = $points;
-      }
-      arsort($rankings);
-      $config = $this->getConfiguration();
-      $relatedIds = array_slice(array_keys($rankings), 0, $config['count']);
-      $build = [];
+      $build = [
+        '#cache' => [
+          'tags' => ['node:' . $node->id()],
+          'contexts' => ['url'],
+        ],
+      ];
+      $relatedIds = $this->_getRelatedNodeIds($node);
       $relatedNodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($relatedIds);
       $viewBuilder = \Drupal::entityTypeManager()->getViewBuilder('node');
       foreach($relatedNodes as $node) {
@@ -95,6 +69,49 @@ class Related extends BlockBase {
     else {
       return [];
     }
+  }
+  
+  /**
+   * Related Node IDs
+   * @param NodeInterface $node
+   * @return array
+   */
+  private function _getRelatedNodeIds(NodeInterface $node): array
+  {
+    $taxonomyFields = [];
+    $taxonomyTerms = [];
+    $query = \Drupal::entityQuery('node');
+    $query->condition('nid', $node->id(), '<>');
+    $taxonomyGroup = $query->orConditionGroup();
+    foreach($node->getFieldDefinitions() as $field) {
+      if ($field->getType() == 'entity_reference' && $field->getSetting('target_type') == 'taxonomy_term') {
+        $taxonomyFields[$field->getName()] = $field->getName();
+        foreach($node->get($field->getName()) as $item) {
+          $term = $item->entity;
+          $taxonomyTerms[$term->id()] = $term->id();
+          $taxonomyGroup->condition($field->getName() . '.target_id', $term->id());
+        }
+      }
+    }
+    $query->condition($taxonomyGroup);
+    $related = $query->execute();
+    $contents = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($related);
+    $rankings = [];
+    foreach($contents as $relatedNode) {
+      $points = 0;
+      foreach($taxonomyFields as $fieldName) {
+        foreach($relatedNode->get($fieldName) as $item) {
+          if (array_key_exists($item->entity->id(), $taxonomyTerms)) {
+            $points++;
+          }
+        }
+      }
+      $rankings[$relatedNode->id()] = $points;
+    }
+    arsort($rankings);
+    $config = $this->getConfiguration();
+    $relatedIds = array_slice(array_keys($rankings), 0, $config['count']);
+    return $relatedIds;
   }
   
 }
