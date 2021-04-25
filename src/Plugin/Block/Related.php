@@ -5,6 +5,7 @@ namespace Drupal\related\Plugin\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\node\NodeInterface;
+use Drupal\Core\Cache\Cache;
 
 /**
  * Related Content Block
@@ -52,10 +53,10 @@ class Related extends BlockBase {
     if (\Drupal::routeMatch()->getRouteName() === 'entity.node.canonical') {
       $node = \Drupal::routeMatch()->getParameter('node');
       $build = [
-        '#cache' => [
-          'tags' => ['node:' . $node->id()],
-          'contexts' => ['url'],
-        ],
+//        '#cache' => [
+//          'tags' => ['node:' . $node->id()],
+//          'contexts' => ['url'],
+//        ],
       ];
       $relatedIds = $this->_getRelatedNodeIds($node);
       $relatedNodes = \Drupal::entityTypeManager()->getStorage('node')->loadMultiple($relatedIds);
@@ -69,6 +70,25 @@ class Related extends BlockBase {
     else {
       return [];
     }
+  }
+  
+  /**
+   * {@inheritdoc}
+   */
+  public function getCacheTags() {
+    if (\Drupal::routeMatch()->getRouteName() === 'entity.node.canonical') {
+      $node = \Drupal::routeMatch()->getParameter('node');
+      return Cache::mergeTags(parent::getCacheTags(), ['node:' . $node->id()]);
+    } else {
+      return parent::getCacheTags();
+    }
+  }
+  
+  /**
+   * {@inheritdoc}
+   */
+  public function getCacheContexts() {
+    return Cache::mergeContexts(parent::getCacheContexts(), ['route']);
   }
   
   /**
